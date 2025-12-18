@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: logdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  aggregator:
+    build:
+      context: ./aggregator       
+      dockerfile: Dockerfile     
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgresql://user:pass@db:5432/logdb
+    depends_on:
+      db:
+        condition: service_healthy
+
+  publisher:
+    build:
+      context: ./publisher         # ← Context: folder publisher
+      dockerfile: Dockerfile       # ← Dockerfile di dalam folder publisher
+    environment:
+      API_URL: http://aggregator:8080
+      TOTAL_EVENTS: 20000
+      DUPLICATE_RATE: 0.3
+    depends_on:
+      - aggregator
+
+volumes:
+  db_data:
